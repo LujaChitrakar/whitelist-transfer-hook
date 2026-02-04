@@ -3,12 +3,7 @@ import { Program } from "@coral-xyz/anchor";
 import {
   TOKEN_2022_PROGRAM_ID,
   getAssociatedTokenAddressSync,
-  createInitializeMintInstruction,
-  getMintLen,
-  ExtensionType,
-  createTransferCheckedWithTransferHookInstruction,
   ASSOCIATED_TOKEN_PROGRAM_ID,
-  createInitializeTransferHookInstruction,
   createAssociatedTokenAccountInstruction,
   createMintToInstruction,
   createTransferCheckedInstruction,
@@ -61,6 +56,7 @@ describe("whitelist-transfer-hook", () => {
   const whitelist = anchor.web3.PublicKey.findProgramAddressSync(
     [
       Buffer.from("whitelist"),
+      provider.publicKey.toBuffer()
     ],
     program.programId
   )[0];
@@ -102,41 +98,22 @@ describe("whitelist-transfer-hook", () => {
     console.log("Transaction signature:", tx);
   });
 
-  it('Create Mint Account with Transfer Hook Extension', async () => {
-    const extensions = [ExtensionType.TransferHook];
-    const mintLen = getMintLen(extensions);
-    const lamports = await provider.connection.getMinimumBalanceForRentExemption(mintLen);
+   it('Create Mint Account with Transfer Hook Extension (Program)', async () => {
+  const tx = await program.methods
+    .initMint()
+     .accountsPartial({
+        user: wallet.publicKey,
+        mint: mint2022.publicKey,
+        extraAccountMetaList: extraAccountMetaListPDA,
+        tokenProgram: TOKEN_2022_PROGRAM_ID,
+      })
+    .signers([mint2022])
+    .rpc();
 
-    const transaction = new Transaction().add(
-      SystemProgram.createAccount({
-        fromPubkey: wallet.publicKey,
-        newAccountPubkey: mint2022.publicKey,
-        space: mintLen,
-        lamports: lamports,
-        programId: TOKEN_2022_PROGRAM_ID,
-      }),
-      createInitializeTransferHookInstruction(
-        mint2022.publicKey,
-        wallet.publicKey,
-        program.programId, // Transfer Hook Program ID
-        TOKEN_2022_PROGRAM_ID,
-      ),
-      createInitializeMintInstruction(mint2022.publicKey, 9, wallet.publicKey, null, TOKEN_2022_PROGRAM_ID),
-    );
-
-    const txSig = await sendAndConfirmTransaction(provider.connection, transaction, [wallet.payer, mint2022], {
-      skipPreflight: true,
-      commitment: 'finalized',
-    });
-
-    const txDetails = await program.provider.connection.getTransaction(txSig, {
-      maxSupportedTransactionVersion: 0,
-      commitment: 'confirmed',
-    });
-    //console.log(txDetails.meta.logMessages);
-
-    console.log("\nTransaction Signature: ", txSig);
-  });
+  console.log("\nMint created on program with transfer hook");
+  console.log("Mint address:", mint2022.publicKey.toBase58());
+  console.log("Transaction Signature:", tx);
+});
 
   it('Create Token Accounts and Mint Tokens', async () => {
     // 100 tokens
